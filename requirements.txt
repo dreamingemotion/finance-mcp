@@ -1,0 +1,4 @@
+mcp[cli]
+yfinance
+httpx
+python-dotenv
