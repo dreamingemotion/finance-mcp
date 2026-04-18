@@ -16,7 +16,6 @@ import yfinance as yf
 from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import PlainTextResponse
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -131,26 +130,42 @@ async def ask_ibkr(question: str) -> str:
 # Auth middleware
 # ---------------------------------------------------------------------------
 
-class _BearerAuthMiddleware(BaseHTTPMiddleware):
-    """Accepts Authorization: Bearer <token> or X-API-Key: <token>."""
+class _BearerAuthMiddleware:
+    """
+    Raw ASGI middleware — does not buffer the response so SSE streams work.
+    Accepts Authorization: Bearer <token>, X-API-Key: <token>, or ?token=<token>.
+    """
 
     def __init__(self, app, token: str):
-        super().__init__(app)
-        self._token = token
+        self.app = app
+        self._token = token.encode()
 
-    async def dispatch(self, request, call_next):
-        auth = request.headers.get("authorization", "")
-        x_key = request.headers.get("x-api-key", "")
-        q_token = request.query_params.get("token", "")
-        if auth.lower().startswith("bearer "):
-            provided = auth[7:].strip()
-        elif x_key:
-            provided = x_key.strip()
-        else:
-            provided = q_token.strip()
-        if provided != self._token:
-            return PlainTextResponse("Unauthorized", status_code=401)
-        return await call_next(request)
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            headers = {k.lower(): v for k, v in scope.get("headers", [])}
+            auth = headers.get(b"authorization", b"").decode()
+            x_key = headers.get(b"x-api-key", b"").decode()
+            qs = scope.get("query_string", b"").decode()
+            q_token = next(
+                (p[6:] for p in qs.split("&") if p.startswith("token=")), ""
+            )
+            if auth.lower().startswith("bearer "):
+                provided = auth[7:].strip().encode()
+            elif x_key:
+                provided = x_key.strip().encode()
+            else:
+                provided = q_token.strip().encode()
+            if provided != self._token:
+                body = b"Unauthorized"
+                await send({
+                    "type": "http.response.start",
+                    "status": 401,
+                    "headers": [[b"content-type", b"text/plain"],
+                                [b"content-length", str(len(body)).encode()]],
+                })
+                await send({"type": "http.response.body", "body": body, "more_body": False})
+                return
+        await self.app(scope, receive, send)
 
 
 # ---------------------------------------------------------------------------
@@ -167,9 +182,7 @@ if __name__ == "__main__":
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     port = int(os.environ.get("MCP_PORT", "8080"))
 
-    app = mcp.sse_app()
-    app.add_middleware(_BearerAuthMiddleware, token=api_key)
-
+    app = _BearerAuthMiddleware(mcp.sse_app(), api_key)
     uvicorn.run(app, host=host, port=port)
 
 
