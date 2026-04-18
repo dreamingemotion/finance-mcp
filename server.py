@@ -142,29 +142,33 @@ class _BearerAuthMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket"):
-            headers = {k.lower(): v for k, v in scope.get("headers", [])}
-            auth = headers.get(b"authorization", b"").decode()
-            x_key = headers.get(b"x-api-key", b"").decode()
-            qs = scope.get("query_string", b"").decode()
-            q_token = next(
-                (p[6:] for p in qs.split("&") if p.startswith("token=")), ""
-            )
-            if auth.lower().startswith("bearer "):
-                provided = auth[7:].strip().encode()
-            elif x_key:
-                provided = x_key.strip().encode()
-            else:
-                provided = q_token.strip().encode()
-            if provided != self._token:
-                body = b"Unauthorized"
-                await send({
-                    "type": "http.response.start",
-                    "status": 401,
-                    "headers": [[b"content-type", b"text/plain"],
-                                [b"content-length", str(len(body)).encode()]],
-                })
-                await send({"type": "http.response.body", "body": body, "more_body": False})
-                return
+            path = scope.get("path", "")
+            # Let OAuth discovery and registration pass through unauthenticated
+            # so Claude.ai can probe the server capabilities.
+            if not path.startswith("/.well-known") and path != "/register":
+                headers = {k.lower(): v for k, v in scope.get("headers", [])}
+                auth = headers.get(b"authorization", b"").decode()
+                x_key = headers.get(b"x-api-key", b"").decode()
+                qs = scope.get("query_string", b"").decode()
+                q_token = next(
+                    (p[6:] for p in qs.split("&") if p.startswith("token=")), ""
+                )
+                if auth.lower().startswith("bearer "):
+                    provided = auth[7:].strip().encode()
+                elif x_key:
+                    provided = x_key.strip().encode()
+                else:
+                    provided = q_token.strip().encode()
+                if provided != self._token:
+                    body = b"Unauthorized"
+                    await send({
+                        "type": "http.response.start",
+                        "status": 401,
+                        "headers": [[b"content-type", b"text/plain"],
+                                    [b"content-length", str(len(body)).encode()]],
+                    })
+                    await send({"type": "http.response.body", "body": body, "more_body": False})
+                    return
         await self.app(scope, receive, send)
 
 
