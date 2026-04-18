@@ -55,6 +55,38 @@ def _is_index(symbol: str) -> bool:
     return s.startswith("^") or s in _INDEX_ALIASES
 
 
+def _yf_quote(symbol: str) -> dict:
+    t = yf.Ticker(symbol)
+    info = t.fast_info
+    last = getattr(info, "last_price", None)
+    prev = getattr(info, "previous_close", None)
+    high = getattr(info, "day_high", None)
+    low  = getattr(info, "day_low", None)
+    vol  = getattr(info, "last_volume", None)
+    chg  = (last - prev) if (last is not None and prev is not None) else None
+    pct  = (chg / prev * 100) if (chg is not None and prev) else None
+    return {
+        "symbol":     symbol,
+        "last":       last,
+        "prev_close": prev,
+        "change":     round(chg, 4) if chg is not None else None,
+        "change_pct": round(pct, 4) if pct is not None else None,
+        "day_high":   high,
+        "day_low":    low,
+        "volume":     vol,
+        "source":     "yahoo_finance",
+    }
+
+
+def _ibkr_quote(symbol: str) -> dict:
+    with httpx.Client(timeout=15) as client:
+        resp = client.get(f"{IBKR_BASE}/stock/{symbol}/quote")
+        resp.raise_for_status()
+        data = resp.json()
+        data["source"] = "ibkr"
+        return data
+
+
 mcp = FastMCP(
     "Finance",
     transport_security=TransportSecuritySettings(
@@ -196,37 +228,3 @@ if __name__ == "__main__":
     uvicorn.run(app, host=host, port=port)
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-def _yf_quote(symbol: str) -> dict:
-    t = yf.Ticker(symbol)
-    info = t.fast_info
-    last = getattr(info, "last_price", None)
-    prev = getattr(info, "previous_close", None)
-    high = getattr(info, "day_high", None)
-    low  = getattr(info, "day_low", None)
-    vol  = getattr(info, "last_volume", None)
-    chg  = (last - prev) if (last is not None and prev is not None) else None
-    pct  = (chg / prev * 100) if (chg is not None and prev) else None
-    return {
-        "symbol":     symbol,
-        "last":       last,
-        "prev_close": prev,
-        "change":     round(chg, 4) if chg is not None else None,
-        "change_pct": round(pct, 4) if pct is not None else None,
-        "day_high":   high,
-        "day_low":    low,
-        "volume":     vol,
-        "source":     "yahoo_finance",
-    }
-
-
-def _ibkr_quote(symbol: str) -> dict:
-    with httpx.Client(timeout=15) as client:
-        resp = client.get(f"{IBKR_BASE}/stock/{symbol}/quote")
-        resp.raise_for_status()
-        data = resp.json()
-        data["source"] = "ibkr"
-        return data
