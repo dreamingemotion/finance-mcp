@@ -16,6 +16,7 @@ import yfinance as yf
 from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import PlainTextResponse
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -54,7 +55,12 @@ def _is_index(symbol: str) -> bool:
     return s.startswith("^") or s in _INDEX_ALIASES
 
 
-mcp = FastMCP("Finance")
+mcp = FastMCP(
+    "Finance",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -142,14 +148,6 @@ class _BearerAuthMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket"):
-            # Rewrite Host header to localhost so MCP's host-security check passes.
-            # The real security boundary is HTTPS at nginx + our token check below.
-            scope = dict(scope)
-            scope["headers"] = [
-                (b"host", b"localhost") if k.lower() == b"host" else (k, v)
-                for k, v in scope.get("headers", [])
-            ]
-
             path = scope.get("path", "")
             # Let OAuth discovery and registration pass through unauthenticated
             # so Claude.ai can probe the server capabilities.
