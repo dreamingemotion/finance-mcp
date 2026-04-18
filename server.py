@@ -141,10 +141,13 @@ class _BearerAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         auth = request.headers.get("authorization", "")
         x_key = request.headers.get("x-api-key", "")
+        q_token = request.query_params.get("token", "")
         if auth.lower().startswith("bearer "):
             provided = auth[7:].strip()
-        else:
+        elif x_key:
             provided = x_key.strip()
+        else:
+            provided = q_token.strip()
         if provided != self._token:
             return PlainTextResponse("Unauthorized", status_code=401)
         return await call_next(request)
