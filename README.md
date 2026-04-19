@@ -84,18 +84,18 @@ sudo systemctl status finance-mcp
 ## 4. Expose via nginx (HTTPS)
 
 Claude's mobile app requires HTTPS. Add a server block to your nginx config
-(replace `mcp.example.com` with your domain and make sure you have a TLS cert,
+(replace `mcp.unfolding.in` with your domain and make sure you have a TLS cert,
 e.g. from Let's Encrypt):
 
 ```nginx
 server {
     listen 443 ssl;
-    server_name mcp.example.com;
+    server_name mcp.unfolding.in;
 
-    ssl_certificate     /etc/letsencrypt/live/mcp.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/mcp.example.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/mcp.unfolding.in/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mcp.unfolding.in/privkey.pem;
 
-    location / {
+    location /servers/finance {
         proxy_pass         http://127.0.0.1:8080;
         proxy_http_version 1.1;
 
@@ -125,7 +125,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 1. Open the Claude mobile app → **Settings → Integrations** (or **MCP Servers**)
 2. Add a new server:
-   - **URL:** `https://mcp.example.com/sse`
+   - **URL:** `https://mcp.unfolding.in/servers/finance/sse`
    - **Auth header:** `Authorization: Bearer <your-MCP_API_KEY>`
 
 ### Claude Code desktop / CLI
@@ -137,7 +137,7 @@ Add to `~/.claude.json` under `mcpServers` (or your project's `.mcp.json`):
   "mcpServers": {
     "finance": {
       "type": "sse",
-      "url": "https://mcp.example.com/sse",
+      "url": "https://mcp.unfolding.in/servers/finance/sse",
       "headers": {
         "Authorization": "Bearer <your-MCP_API_KEY>"
       }
@@ -170,6 +170,7 @@ Every request must include one of:
 ```
 Authorization: Bearer <MCP_API_KEY>
 X-API-Key: <MCP_API_KEY>
+?token=<MCP_API_KEY>   (query parameter)
 ```
 
 Requests without a valid token receive `401 Unauthorized`.
