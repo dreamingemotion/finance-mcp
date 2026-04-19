@@ -125,8 +125,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 1. Open the Claude mobile app → **Settings → Integrations** (or **MCP Servers**)
 2. Add a new server:
-   - **URL:** `https://mcp.unfolding.in/servers/finance/sse`
-   - **Auth header:** `Authorization: Bearer <your-MCP_API_KEY>`
+   - **URL:** `https://mcp.unfolding.in/servers/finance/mcp?token=<your-MCP_API_KEY>`
 
 ### Claude Code desktop / CLI
 
@@ -136,11 +135,8 @@ Add to `~/.claude.json` under `mcpServers` (or your project's `.mcp.json`):
 {
   "mcpServers": {
     "finance": {
-      "type": "sse",
-      "url": "https://mcp.unfolding.in/servers/finance/sse",
-      "headers": {
-        "Authorization": "Bearer <your-MCP_API_KEY>"
-      }
+      "type": "http",
+      "url": "https://mcp.unfolding.in/servers/finance/mcp?token=<your-MCP_API_KEY>"
     }
   }
 }
